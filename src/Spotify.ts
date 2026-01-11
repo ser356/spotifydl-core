@@ -79,8 +79,16 @@ export default class SpotifyFetcher extends SpotifyApi {
     }
 
     getID = (url: string): string => {
-        const splits = url.split('/')
-        return splits[splits.length - 1]
+        if (!url) return ''
+        // Handle Spotify URIs like "spotify:playlist:ID"
+        if (url.startsWith('spotify:')) {
+            const parts = url.split(':').filter(Boolean)
+            return parts[parts.length - 1]
+        }
+        // Strip query string and hash fragments from web URLs
+        const clean = url.split('?')[0].split('#')[0]
+        const segments = clean.split('/').filter(Boolean)
+        return segments[segments.length - 1] || ''
     }
 
     /**
@@ -149,6 +157,16 @@ export default class SpotifyFetcher extends SpotifyApi {
     downloadAlbum = async (url: string): Promise<(string | Buffer)[]> => await this.downloadBatch(url, 'album')
 
     /**
+     * Downloads tracks for multiple playlists
+     * @param urls Array of playlist URLs
+     * @returns Array of per-playlist downloads
+     */
+    downloadPlaylists = async (urls: string[]): Promise<(string | Buffer)[][]> => {
+        await this.verifyCredentials()
+        return Promise.all(urls.map((u) => this.downloadPlaylist(u)))
+    }
+
+    /**
      * Gets the info of tracks from playlist URL
      * @param url URL of the playlist
      */
@@ -157,7 +175,7 @@ export default class SpotifyFetcher extends SpotifyApi {
     ): Promise<{ name: string; total_tracks: number; tracks: SongDetails[] }> => {
         await this.verifyCredentials()
         const playlist = await this.getPlaylist(url)
-        const tracks = await Promise.all(playlist.tracks.map((track) => this.getTrack(track)))
+        const tracks = await this.mapWithConcurrency(playlist.tracks, 5, (track) => this.getTrack(track))
         return {
             name: playlist.name,
             total_tracks: playlist.total_tracks,
@@ -174,7 +192,7 @@ export default class SpotifyFetcher extends SpotifyApi {
     ): Promise<{ name: string; total_tracks: number; tracks: SongDetails[] }> => {
         await this.verifyCredentials()
         const playlist = await this.getAlbum(url)
-        const tracks = await Promise.all(playlist.tracks.map((track) => this.getTrack(track)))
+        const tracks = await this.mapWithConcurrency(playlist.tracks, 5, (track) => this.getTrack(track))
         return {
             name: playlist.name,
             total_tracks: playlist.total_tracks,
@@ -182,5 +200,30 @@ export default class SpotifyFetcher extends SpotifyApi {
         }
     }
 
+    /**
+     * Gets track info from multiple playlists
+     * @param urls Array of playlist URLs
+     */
+    getTracksFromPlaylists = async (
+        urls: string[]
+    ): Promise<Array<{ name: string; total_tracks: number; tracks: SongDetails[] }>> => {
+        await this.verifyCredentials()
+        return Promise.all(urls.map((u) => this.getTracksFromPlaylist(u)))
+    }
+
     getSpotifyUser = async (id: string): Promise<UserObjectPublic> => await this.getUser(id)
+
+    private mapWithConcurrency = async <T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> => {
+        const results: R[] = []
+        let index = 0
+        const workers = Array(Math.max(1, limit)).fill(0).map(async () => {
+            while (index < items.length) {
+                const i = index++
+                const res = await fn(items[i])
+                results[i] = res
+            }
+        })
+        await Promise.all(workers)
+        return results
+    }
 }

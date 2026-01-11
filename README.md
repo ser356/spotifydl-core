@@ -120,3 +120,34 @@ const links = {
 
 - Swapnil Soni: [Spotify-dl](https://github.com/SwapnilSoni1999/spotify-dl)
 - Fent: [Ytdl-core](https://github.com/fent/node-ytdl-core)
+
+## Deployment
+
+- **Docker:** Build and run the web service.
+
+    1. Build the image
+
+         ```bash
+         docker build -t spotifydl-core:latest .
+         ```
+
+    2. Run the container
+
+         ```bash
+         docker run --rm -p 3000:3000 -e PORT=3000 spotifydl-core:latest
+         ```
+
+    3. Health check
+
+         ```bash
+         curl http://localhost:3000/health
+         ```
+
+- **Railway / Fly.io / Render:** Create a Docker-based web service using the provided `Dockerfile`.
+    - Expose port `3000`.
+    - The service requires `ffmpeg` (installed in the image) and downloads `yt-dlp` binary at runtime.
+    - Use `POST /playlists/process` with `accessToken`, optional `refreshToken`, `clientId`, and `playlists` array.
+
+- **Environment Notes:**
+    - `ffmpeg` is required for audio conversion.
+    - `PORT` defaults to `3000` if not set.

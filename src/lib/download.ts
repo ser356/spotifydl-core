@@ -1,9 +1,10 @@
 import os from 'os'
-import ytdl from 'ytdl-core'
 import SpotifyDlError from './Error'
-import { readFile, unlink, writeFile } from 'fs-extra'
+import { readFile, unlink, writeFile, pathExists } from 'fs-extra'
 import axios from 'axios'
-import Ffmpeg from 'fluent-ffmpeg'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+const execFileAsync = promisify(execFile)
 
 /**
  * Function to download the give `YTURL`
@@ -11,24 +12,69 @@ import Ffmpeg from 'fluent-ffmpeg'
  * @returns `Buffer`
  * @throws Error if the URL is invalid
  */
+const isYoutubeUrl = (url: string): boolean => /youtu\.be|youtube\.com/.test(url)
+
 export const downloadYT = async (url: string): Promise<Buffer> => {
-    if (!ytdl.validateURL(url)) throw new SpotifyDlError('Invalid YT URL', 'SpotifyDlError')
+    if (!isYoutubeUrl(url)) throw new SpotifyDlError('Invalid YT URL', 'SpotifyDlError')
     const filename = `${os.tmpdir()}/${Math.random().toString(36).slice(-5)}.mp3`
-    const stream = ytdl(url, {
-        quality: 'highestaudio',
-        filter: 'audioonly'
-    })
-    return await new Promise((resolve, reject) => {
-        Ffmpeg(stream)
-            .audioBitrate(128)
-            .save(filename)
-            .on('error', (err) => reject(err))
-            .on('end', async () => {
-                const buffer = await readFile(filename)
-                unlink(filename)
-                resolve(buffer)
-            })
-    })
+    const youtubeDlCmd = (await pathExists('/usr/bin/youtube-dl'))
+        ? '/usr/bin/youtube-dl'
+        : (await pathExists('/usr/local/bin/youtube-dl'))
+            ? '/usr/local/bin/youtube-dl'
+            : 'youtube-dl'
+    const ytDlpCmd = process.env.YTDLP_BIN
+        ? process.env.YTDLP_BIN
+        : (await pathExists('/usr/local/bin/yt-dlp_linux'))
+            ? '/usr/local/bin/yt-dlp_linux'
+            : (await pathExists('/usr/bin/yt-dlp'))
+                ? '/usr/bin/yt-dlp'
+                : (await pathExists('/usr/local/bin/yt-dlp'))
+                    ? '/usr/local/bin/yt-dlp'
+                    : 'yt-dlp'
+
+    const proxyArg = process.env.YTDLP_PROXY ? ['--proxy', process.env.YTDLP_PROXY] as string[] : []
+    const cookiesArg = process.env.YTDLP_COOKIES_PATH ? ['--cookies', process.env.YTDLP_COOKIES_PATH] as string[] : []
+    const commonArgs = [
+        url,
+        '-x', '--audio-format', 'mp3', '--audio-quality', '0',
+        '-o', filename,
+        '--format', 'bestaudio/best',
+        '--no-check-certificate',
+        '--add-metadata',
+        '--prefer-free-formats',
+        '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        '--referer', 'https://www.youtube.com/',
+        '--geo-bypass',
+        '--ignore-errors',
+        '--no-playlist',
+        '--force-ipv4',
+        ...proxyArg,
+        ...cookiesArg
+    ]
+
+    // Try youtube-dl first
+    try {
+        await execFileAsync(youtubeDlCmd, commonArgs, { maxBuffer: 128 * 1024 * 1024 })
+    } catch (_err) {
+        // Fallback: attempt yt-dlp with different client profiles to dodge 403s
+        const clients = ['web', 'web_safari', 'mweb', 'web_embed', 'ios', 'android', 'tv']
+        let lastErr: unknown = _err
+        for (const client of clients) {
+            const args = [...commonArgs, '--extractor-args', `youtube:player_client=${client}`]
+            try {
+                await execFileAsync(ytDlpCmd, args, { maxBuffer: 128 * 1024 * 1024 })
+                lastErr = undefined
+                break
+            } catch (e) {
+                lastErr = e
+                continue
+            }
+        }
+        if (lastErr) throw lastErr
+    }
+    const buffer = await readFile(filename)
+    unlink(filename)
+    return buffer
 }
 
 /**
@@ -40,12 +86,13 @@ export const downloadYT = async (url: string): Promise<Buffer> => {
 export const downloadYTAndSave = async (url: string, filename = (Math.random() + 1).toString(36).substring(7) + '.mp3'): Promise<string> => {
     const audio = await downloadYT(url)
     try {
-        await writeFile(filename, audio)
+        await writeFile(filename, new Uint8Array(audio))
         return filename
     } catch (err) {
         throw new SpotifyDlError(`Error While writing to File: ${filename}`)
     }
 }
+
 
 /**
  * Function to get buffer of files with their URLs
