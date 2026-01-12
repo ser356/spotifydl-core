@@ -37,3 +37,28 @@ export const initYtdlpProxy = async (): Promise<void> => {
     console.log('[proxy] Unable to fetch proxy from Proxifly')
   }
 }
+
+/**
+ * Resolve a proxy to use for a single yt-dlp download.
+ * Priority:
+ *  - If `YTDLP_PROXY_ROTATE` is truthy → fetch a fresh proxy
+ *  - Else if `YTDLP_PROXY` is set → use it
+ *  - Else if `ENABLE_PROXY` is truthy → fetch a fresh proxy
+ *  - Else → undefined (no proxy)
+ */
+export const resolveProxyForYtdlp = async (): Promise<string | undefined> => {
+  const rotateRaw = String(process.env.YTDLP_PROXY_ROTATE || '').trim()
+  const rotateEnabled = !!rotateRaw && rotateRaw !== '0' && rotateRaw.toLowerCase() !== 'false'
+  if (rotateEnabled) {
+    return await getProxiflyHttpProxy()
+  }
+  if (process.env.YTDLP_PROXY) {
+    return process.env.YTDLP_PROXY
+  }
+  const enableRaw = String(process.env.ENABLE_PROXY || '').trim()
+  const enable = !!enableRaw && enableRaw !== '0' && enableRaw.toLowerCase() !== 'false'
+  if (enable) {
+    return await getProxiflyHttpProxy()
+  }
+  return undefined
+}

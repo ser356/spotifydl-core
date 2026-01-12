@@ -4,6 +4,7 @@ import { readFile, unlink, writeFile, pathExists } from 'fs-extra'
 import axios from 'axios'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { resolveProxyForYtdlp } from './proxy'
 const execFileAsync = promisify(execFile)
 
 /**
@@ -32,7 +33,8 @@ export const downloadYT = async (url: string): Promise<Buffer> => {
                     ? '/usr/local/bin/yt-dlp'
                     : 'yt-dlp'
 
-    const proxyArg = process.env.YTDLP_PROXY ? ['--proxy', process.env.YTDLP_PROXY] as string[] : []
+    const proxyStr = await resolveProxyForYtdlp()
+    const proxyArg = proxyStr ? ['--proxy', proxyStr] as string[] : []
     const cookiesArg = process.env.YTDLP_COOKIES_PATH ? ['--cookies', process.env.YTDLP_COOKIES_PATH] as string[] : []
     const commonArgs = [
         url,

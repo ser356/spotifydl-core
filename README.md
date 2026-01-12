@@ -151,3 +151,27 @@ const links = {
 - **Environment Notes:**
     - `ffmpeg` is required for audio conversion.
     - `PORT` defaults to `3000` if not set.
+
+### Proxy & yt-dlp configuration
+
+- `YTDLP_BIN`: Optional absolute path to `yt-dlp` (or `youtube-dl`).
+- `YTDLP_COOKIES_PATH`: Optional path to a cookies file for YouTube (mitigates auth prompts).
+- `YTDLP_PROXY`: Static proxy used by `yt-dlp` (e.g. `http://IP:PORT`).
+- `ENABLE_PROXY`: When truthy and `YTDLP_PROXY` is not set, auto-fetches a proxy at startup.
+- `YTDLP_PROXY_ROTATE`: When truthy, fetches a fresh proxy for each download.
+
+Examples:
+
+```bash
+# Use a fixed proxy
+export YTDLP_PROXY=http://203.0.113.10:8080
+
+# Auto-pick a proxy once at startup
+export ENABLE_PROXY=1
+
+# Rotate proxy per track download
+export YTDLP_PROXY_ROTATE=1
+
+# Provide YouTube cookies to avoid bot checks
+export YTDLP_COOKIES_PATH=/app/cookies.txt
+```
