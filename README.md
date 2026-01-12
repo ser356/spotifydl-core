@@ -156,6 +156,7 @@ const links = {
 
 - `YTDLP_BIN`: Optional absolute path to `yt-dlp` (or `youtube-dl`).
 - `YTDLP_COOKIES_PATH`: Optional path to a cookies file for YouTube (mitigates auth prompts).
+- `YTDLP_COOKIES_B64`: Optional base64-encoded contents of a Netscape-format cookies file. If set, a temporary file is created and used. When cookies are provided, proxy resolution is skipped.
 - `YTDLP_PROXY`: Static proxy used by `yt-dlp` (e.g. `http://IP:PORT`).
 - `ENABLE_PROXY`: When truthy and `YTDLP_PROXY` is not set, auto-fetches a proxy at startup.
 - `YTDLP_PROXY_ROTATE`: When truthy, fetches a fresh proxy for each download.
@@ -174,4 +175,14 @@ export YTDLP_PROXY_ROTATE=1
 
 # Provide YouTube cookies to avoid bot checks
 export YTDLP_COOKIES_PATH=/app/cookies.txt
+
+# Alternatively, pass cookies via base64 (Heroku-friendly)
+# The value should be base64 of a Netscape HTTP Cookie File
+export YTDLP_COOKIES_B64="$(base64 -w0 /path/to/cookies.txt)"
+```
+
+Notes:
+
+- When `YTDLP_COOKIES_PATH` or `YTDLP_COOKIES_B64` is set, the service will not use proxies for YouTube downloads.
+- To generate a cookies file, export cookies from your browser in Netscape format (e.g. using an extension), or use `yt-dlp` with `--cookies-from-browser` locally to produce one.
 ```

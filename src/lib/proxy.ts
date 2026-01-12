@@ -24,6 +24,8 @@ export const getProxiflyHttpProxy = async (): Promise<string | undefined> => {
  * Initialize yt-dlp proxy from Proxifly when ENABLE_PROXY is set and no YTDLP_PROXY present.
  */
 export const initYtdlpProxy = async (): Promise<void> => {
+  const hasCookies = !!process.env.YTDLP_COOKIES_PATH || !!process.env.YTDLP_COOKIES_B64
+  if (hasCookies) return
   const enable = String(process.env.ENABLE_PROXY || '').trim()
   if (!enable || enable === '0' || enable.toLowerCase() === 'false') return
   if (process.env.YTDLP_PROXY) return
@@ -47,6 +49,8 @@ export const initYtdlpProxy = async (): Promise<void> => {
  *  - Else → undefined (no proxy)
  */
 export const resolveProxyForYtdlp = async (): Promise<string | undefined> => {
+  const hasCookies = !!process.env.YTDLP_COOKIES_PATH || !!process.env.YTDLP_COOKIES_B64
+  if (hasCookies) return undefined
   const rotateRaw = String(process.env.YTDLP_PROXY_ROTATE || '').trim()
   const rotateEnabled = !!rotateRaw && rotateRaw !== '0' && rotateRaw.toLowerCase() !== 'false'
   if (rotateEnabled) {

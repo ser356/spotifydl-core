@@ -33,9 +33,19 @@ export const downloadYT = async (url: string): Promise<Buffer> => {
                     ? '/usr/local/bin/yt-dlp'
                     : 'yt-dlp'
 
-    const proxyStr = await resolveProxyForYtdlp()
+    let tmpCookiesPath: string | undefined
+    const cookiesPathEnv = process.env.YTDLP_COOKIES_PATH
+    const cookiesB64Env = process.env.YTDLP_COOKIES_B64
+    if (!cookiesPathEnv && cookiesB64Env) {
+        const tmpPath = `${os.tmpdir()}/yt_cookies_${Math.random().toString(36).slice(-8)}.txt`
+        const buf = Buffer.from(cookiesB64Env, 'base64')
+        await writeFile(tmpPath, buf)
+        tmpCookiesPath = tmpPath
+    }
+    const effectiveCookiesPath = cookiesPathEnv || tmpCookiesPath
+    const cookiesArg = effectiveCookiesPath ? ['--cookies', effectiveCookiesPath] as string[] : []
+    const proxyStr = cookiesArg.length === 0 ? await resolveProxyForYtdlp() : undefined
     const proxyArg = proxyStr ? ['--proxy', proxyStr] as string[] : []
-    const cookiesArg = process.env.YTDLP_COOKIES_PATH ? ['--cookies', process.env.YTDLP_COOKIES_PATH] as string[] : []
     const commonArgs = [
         url,
         '-x', '--audio-format', 'mp3', '--audio-quality', '0',
@@ -76,6 +86,9 @@ export const downloadYT = async (url: string): Promise<Buffer> => {
     }
     const buffer = await readFile(filename)
     unlink(filename)
+    if (tmpCookiesPath) {
+        unlink(tmpCookiesPath)
+    }
     return buffer
 }
 
